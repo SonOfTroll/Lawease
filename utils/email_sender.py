@@ -15,7 +15,6 @@ def send_email_with_attachment(to_email, subject, body_text, attachment_bytes, f
     part['Content-Disposition'] = f'attachment; filename="{filename}"'
     msg.attach(part)
 
-    # Connect to Proton Mail's SMTP server
-    with smtplib.SMTP_SSL("smtp.protonmail.ch", 465) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(SENDER_EMAIL, APP_PASSWORD)
         server.send_message(msg)
