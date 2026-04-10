@@ -116,7 +116,7 @@ def chat():
     try:
         response = co.chat(
             message=f"You are a legal assistant. Answer the following legal question concisely: {user_input}",
-            model="command-r-plus",
+            model="command-r-plus-08-2024",
             temperature=0.5
         )
         bot_reply = response.text.strip()
