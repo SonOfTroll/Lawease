@@ -12,6 +12,11 @@ app = Flask(__name__)
 # Load environment variables from .env file
 load_dotenv()
 
+from config import AGREEMENT_CONFIGS
+from utils.google_sheets import append_to_sheet
+from utils.google_docs import fill_template_and_export
+from utils.email_sender import send_email_with_attachment
+
 # ===== COHERE CHATBOT SETUP =====
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 if not COHERE_API_KEY:
@@ -175,24 +180,48 @@ def predict_outcome():
         return jsonify({"error": str(e)}), 500
 
 
-# --- Document Generation Info ---
+# --- Document Generation ---
 @app.route("/api/docgen", methods=["POST"])
 def generate_document():
-    """Frontend-only for now — shows what would be generated.
-    Full integration requires Google API credentials."""
     data = request.get_json()
     doc_type = data.get("type", "")
     form_data = data.get("data", {})
 
     if doc_type not in ["partnership", "nda", "ip"]:
         return jsonify({"error": "Invalid document type."}), 400
-
-    return jsonify({
-        "success": True,
-        "message": f"Your {doc_type.upper()} agreement has been prepared. To activate email delivery, configure Google API credentials in the .env file.",
-        "type": doc_type,
-        "fields_received": len(form_data)
-    })
+        
+    try:
+        config = AGREEMENT_CONFIGS[doc_type]
+        
+        # 1. Save data to Google Sheets
+        try:
+            append_to_sheet(config["sheet_id"], form_data)
+        except Exception as e:
+            print(f"Warning: Failed to append to sheet: {e}")
+            
+        # 2. Fill the Google Docs template and export as PDF
+        pdf_bytes = fill_template_and_export(config["template_id"], form_data)
+        
+        # 3. Email the PDF to the user
+        user_email = form_data.get("email", None)
+        if not user_email:
+            return jsonify({"error": "Email address is required."}), 400
+            
+        send_email_with_attachment(
+            to_email=user_email,
+            subject=f"Your LawEase {doc_type.capitalize()} Agreement",
+            body_text=f"Hello,\n\nPlease find attached the legally formatted {doc_type.capitalize()} agreement generated via LawEase.\n\nBest,\nLawEase AI",
+            attachment_bytes=pdf_bytes,
+            filename=f"{doc_type.capitalize()}_Agreement.pdf"
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": f"Agreement successfully created and emailed to {user_email}.",
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred while generating the document: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
