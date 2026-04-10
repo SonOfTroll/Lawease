@@ -1,3 +1,8 @@
 .env
 *.env
 venv/
+__pycache__/
+*.pyc
+temp_credentials.json
+credentials_base64.txt
+*.pkl

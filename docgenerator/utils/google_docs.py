@@ -2,21 +2,19 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 import os
 import base64
+import json
+import tempfile
 
-# Create credentials from base64 string stored in environment variable
 def get_google_credentials():
     encoded_creds = os.getenv("GOOGLE_CREDENTIALS_BASE64")
     if not encoded_creds:
         raise Exception("Missing GOOGLE_CREDENTIALS_BASE64 environment variable.")
-    
+
     credentials_json = base64.b64decode(encoded_creds).decode("utf-8")
-    
-    # Write to a temporary file
-    with open("temp_credentials.json", "w") as f:
-        f.write(credentials_json)
-    
-    creds = service_account.Credentials.from_service_account_file(
-        "temp_credentials.json",
+    credentials_dict = json.loads(credentials_json)
+
+    creds = service_account.Credentials.from_service_account_info(
+        credentials_dict,
         scopes=[
             "https://www.googleapis.com/auth/documents",
             "https://www.googleapis.com/auth/drive"
@@ -27,7 +25,7 @@ def get_google_credentials():
 
 def fill_template_and_export(template_id, data_dict):
     creds = get_google_credentials()
-    
+
     docs_service = build("docs", "v1", credentials=creds)
     drive_service = build("drive", "v3", credentials=creds)
 
@@ -42,7 +40,7 @@ def fill_template_and_export(template_id, data_dict):
     requests = [{
         "replaceAllText": {
             "containsText": {
-                "text": f"{{{{{key}}}}}",  # Matches {{key}} format
+                "text": f"{{{{{key}}}}}",
                 "matchCase": True
             },
             "replaceText": value

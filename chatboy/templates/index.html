@@ -1,153 +1,421 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 
 <head>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
- <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="LawEase — AI-Powered Legal Documentation & Assistance Platform. Generate legal documents, predict case outcomes, and get instant legal guidance.">
+    <title>LawEase — AI Legal Assistant</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/x-icon">
+
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="shortcut icon" href="./img/favicon.png" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@dracula/css/dracula.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style1.css') }}">
-    <title>LAWEASE</title>
+
+    <!-- GSAP + ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 
 <body>
-    <header>
+    <!-- WebGL Canvas Background -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Cursor Glow -->
+    <div id="cursor-glow"></div>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="loader-content">
+            <div class="loader-logo">⚖️</div>
+            <h2 class="loader-text">LAWEASE</h2>
+            <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <header id="main-header">
         <nav>
-            <h1>
-                <xmp><LAWEASE></xmp>
-            </h1>
-            <a href="#" id="menu"><img src="./img/menu.png" alt="Menu"></a>
-            <ul class="menu">
-                <li><a href="#informacao">Info</a></li>
-                <li><a href="#minhas-habilidades">Services</a></li>
-                <li><a href="#contatos">Contact</a></li>
+            <a href="#" class="nav-logo" id="nav-logo">
+                <span class="logo-icon">⚖️</span>
+                <span class="logo-text">LAWEASE</span>
+            </a>
+            <button class="nav-toggle" id="nav-toggle" aria-label="Toggle Navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-links" id="nav-links">
+                <li><a href="#hero" class="nav-link">Home</a></li>
+                <li><a href="#about" class="nav-link">About</a></li>
+                <li><a href="#services" class="nav-link">Services</a></li>
             </ul>
         </nav>
     </header>
+
     <main>
-        <section id="informacao">
-            <div id="sobre">
-                <h1>LAWEASE</h1>
-                <h2>Your All-in-One AI Legal Assistant</h2>
-                <h3>Generate Legal Documents, Predict Case Outcomes, and Get Instant Legal Guidance — All in One Place.</h3>
-            </div>
-            <div id="codigo">
-                <span><pre class="hljs" style="display: block; overflow-x: auto; color: rgb(186, 186, 186);">let <span class="hljs-keyword" style="color: rgb(203, 120, 50);">button_menu </span>= document.querySelector(<span class="hljs-string" style="color: rgb(224, 196, 108);">".header_button"</span>)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-let float_menu = document.querySelector(<span class="hljs-string" style="color: rgb(224, 196, 108);">".header_menu--float"</span>)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-                        
-let line_top = document.querySelector(<span class="hljs-string" style="color: rgb(224, 196, 108);">".header_button_line--top"</span>)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-let line_under = document.querySelector(<span class="hljs-string" style="color: rgb(224, 196, 108);">".header_button_line--bottom"</span>)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-                        
-<span class="hljs-keyword" style="color: rgb(203, 120, 50);">button_menu.isSelected </span>= false<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-                        
-function <span class="hljs-keyword" style="color: rgb(203, 120, 50);">addEffectWriting(element, </span>time) {
-    let element_array = element.innerText.split(<span class="hljs-string" style="color: rgb(224, 196, 108);">""</span>)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-
-    element.count = <span class="hljs-number" style="color: rgb(104, 150, 186);">0</span><span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-    element.innerText = <span class="hljs-string" style="color: rgb(224, 196, 108);">""</span><span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-
-    function writeSymbols() {
-        element.innerText += element_array[element.count]<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-        element.count++<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-
-        if (element.count &lt;= element_array.length) {
-            setTimeout(() =&gt; {
-                writeSymbols()<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-            }, time)<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-        } else if (element.count &gt;= element_array.length) {
-            element.count = <span class="hljs-number" style="color: rgb(104, 150, 186);">0</span><span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-            element.innerText = <span class="hljs-string" style="color: rgb(224, 196, 108);">""</span><span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-
-            writeSymbols()<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-        }
-    }
-    writeSymbols()<span class="hljs-comment" style="color: rgb(127, 127, 127);">;</span>
-}</pre></span>
-            </div>
-        </section>
-
-        <section id="historia">
-            <img src="https://bernardmarr.com/img/The%20Future%20of%20Lawyers%20Legal%20Tech%20AI%20Big%20Data%20And%20Online%20Courts.png" alt="Retangulo">
-            <h1> Bridging law and technology with intelligence. LawEase isn’t just an AI tool — it’s the beginning of a revolution in legal tech. From intelligent document drafting to real-time research and predictive compliance, we’re building the foundation for the next era of digital law.            </h1>
-        </section>
-        <section id="minhas-habilidades">
-            <h1 class="titulo">Services</h1>
-            <div id="habilidades">
-                <div class="card">
-                    <a href="https://kvrcenbsagt2cwjyvfy5cs.streamlit.app/">
-                        <img src="{{ url_for('static', filename='Images/R-modified.png') }}" heigt="100" width="100" class="normal" alt="Example Image">
-                    </a>
-                    <h1>Case Prediction</h1>
+        <!-- Hero Section -->
+        <section id="hero">
+            <div class="hero-content">
+                <div class="hero-badge" id="hero-badge">
+                    <span class="badge-dot"></span>
+                    AI-Powered Legal Tech
                 </div>
-                <div class="card">
-                    <a href="https://docgenerator-pcvn.onrender.com">
-                        <img src="https://th.bing.com/th/id/OIP.pkjoXIOpnoFBlHn-pyLDlQAAAA?rs=1&pid=ImgDetMain" heigt="100" width="100"  alt="CSS3" class="normal">
+                <h1 class="hero-title" id="hero-title">
+                    <span class="hero-line">Justice Made</span>
+                    <span class="hero-line hero-gradient">Accessible</span>
+                </h1>
+                <p class="hero-subtitle" id="hero-subtitle">
+                    Generate legal documents, predict case outcomes, and get instant legal guidance — all powered by artificial intelligence.
+                </p>
+                <div class="hero-cta" id="hero-cta">
+                    <a href="#services" class="btn btn-primary" id="btn-explore">
+                        <span>Explore Services</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
                     </a>
-                    <h1>Doc Generation</h1>
+                    <a href="#about" class="btn btn-outline" id="btn-learn">Learn More</a>
+                </div>
+                <div class="hero-stats" id="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number" data-target="3">0</span>
+                        <span class="stat-label">AI Services</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-target="5">0</span><span class="stat-plus">+</span>
+                        <span class="stat-label">Document Types</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-target="95">0</span><span class="stat-plus">%</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
                 </div>
             </div>
+            <div class="hero-glow"></div>
+            <div class="hero-glow hero-glow-2"></div>
         </section>
 
-        <!-- Chatbot Icon & Message -->
+        <!-- About Section -->
+        <section id="about">
+            <div class="section-container">
+                <div class="section-label" id="about-label">About LawEase</div>
+                <h2 class="section-title" id="about-title">Bridging Law &amp; Technology</h2>
+                <div class="about-grid">
+                    <div class="about-card" id="about-card-1">
+                        <div class="about-card-icon">🧠</div>
+                        <h3>AI-Driven Insights</h3>
+                        <p>Powered by advanced NLP and machine learning models to simplify complex legal language and provide actionable guidance.</p>
+                    </div>
+                    <div class="about-card" id="about-card-2">
+                        <div class="about-card-icon">📄</div>
+                        <h3>Automated Documents</h3>
+                        <p>Generate legally compliant agreements — NDAs, partnership contracts, and IP agreements — in seconds with our smart templates.</p>
+                    </div>
+                    <div class="about-card" id="about-card-3">
+                        <div class="about-card-icon">⚖️</div>
+                        <h3>Case Prediction</h3>
+                        <p>ML-powered case outcome prediction trained on real court data. Understand your chances before stepping into the courtroom.</p>
+                    </div>
+                    <div class="about-card" id="about-card-4">
+                        <div class="about-card-icon">🔒</div>
+                        <h3>Secure & Private</h3>
+                        <p>Your data stays private. All processing happens securely with no data sharing — what you input stays with you.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Services Section -->
+        <section id="services">
+            <div class="section-container">
+                <div class="section-label" id="services-label">Our Services</div>
+                <h2 class="section-title" id="services-title">What LawEase Can Do</h2>
+                <div class="services-grid">
+                    <!-- Service 1: Case Prediction -->
+                    <div class="service-card" id="service-card-1" onclick="openPanel('prediction')">
+                        <div class="service-card-bg"></div>
+                        <div class="service-card-number">01</div>
+                        <div class="service-card-content">
+                            <div class="service-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                </svg>
+                            </div>
+                            <h3 class="service-title">Case Prediction</h3>
+                            <p class="service-desc">Predict outcomes &amp; classify legal cases using AI trained on thousands of court judgements.</p>
+                            <div class="service-cta">
+                                <span>Try Now</span>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Service 2: Document Generation -->
+                    <div class="service-card" id="service-card-2" onclick="openPanel('docgen')">
+                        <div class="service-card-bg"></div>
+                        <div class="service-card-number">02</div>
+                        <div class="service-card-content">
+                            <div class="service-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                </svg>
+                            </div>
+                            <h3 class="service-title">Document Generation</h3>
+                            <p class="service-desc">Auto-generate NDAs, IP agreements, and partnership contracts. Delivered as PDF to your inbox.</p>
+                            <div class="service-cta">
+                                <span>Try Now</span>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Service 3: AI Chatbot -->
+                    <div class="service-card" id="service-card-3" onclick="toggleChat()">
+                        <div class="service-card-bg"></div>
+                        <div class="service-card-number">03</div>
+                        <div class="service-card-content">
+                            <div class="service-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </div>
+                            <h3 class="service-title">AI Legal Chatbot</h3>
+                            <p class="service-desc">Ask any legal question and get instant AI-powered answers. Available 24/7, right here.</p>
+                            <div class="service-cta">
+                                <span>Open Chat</span>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ============ SERVICE PANELS (Slide-in overlays) ============ -->
+
+    <!-- CASE PREDICTION PANEL -->
+    <div id="panel-prediction" class="service-panel">
+        <div class="panel-overlay" onclick="closePanel('prediction')"></div>
+        <div class="panel-content">
+            <button class="panel-close" onclick="closePanel('prediction')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <div class="panel-header">
+                <div class="panel-icon">⚖️</div>
+                <h2>Case Prediction</h2>
+                <p>Predict case outcomes and classify legal cases using AI</p>
+            </div>
+
+            <!-- Tab Toggle -->
+            <div class="panel-tabs">
+                <button class="panel-tab active" onclick="switchTab('predict', this)">Outcome Prediction</button>
+                <button class="panel-tab" onclick="switchTab('classify', this)">Case Classification</button>
+            </div>
+
+            <!-- Outcome Prediction Tab -->
+            <div id="tab-predict" class="tab-content active">
+                <div class="panel-form">
+                    <div class="form-group">
+                        <label>First Party (Petitioner)</label>
+                        <input type="text" id="pred-first-party" placeholder="e.g. State of Maharashtra">
+                    </div>
+                    <div class="form-group">
+                        <label>Second Party (Respondent)</label>
+                        <input type="text" id="pred-second-party" placeholder="e.g. Rajesh Kumar">
+                    </div>
+                    <div class="form-group full">
+                        <label>Case Facts</label>
+                        <textarea id="pred-facts" placeholder="Describe the facts of the case in detail (minimum 20 characters)..." rows="4"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-full" onclick="predictOutcome()" id="btn-predict">
+                        <span>Predict Outcome</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+                <div id="prediction-result" class="result-box hidden"></div>
+            </div>
+
+            <!-- Case Classification Tab -->
+            <div id="tab-classify" class="tab-content">
+                <div class="panel-form">
+                    <div class="form-group full">
+                        <label>Enter Case Details</label>
+                        <textarea id="classify-facts" placeholder="Describe your case in detail for category classification..." rows="5"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-full" onclick="classifyCase()" id="btn-classify">
+                        <span>Classify Case</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+                <div id="classify-result" class="result-box hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOCUMENT GENERATION PANEL -->
+    <div id="panel-docgen" class="service-panel">
+        <div class="panel-overlay" onclick="closePanel('docgen')"></div>
+        <div class="panel-content">
+            <button class="panel-close" onclick="closePanel('docgen')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <div class="panel-header">
+                <div class="panel-icon">📄</div>
+                <h2>Document Generation</h2>
+                <p>Select an agreement type and fill in the details</p>
+            </div>
+
+            <!-- Doc Type Tabs -->
+            <div class="panel-tabs">
+                <button class="panel-tab active" onclick="switchDocTab('partnership', this)">Partnership</button>
+                <button class="panel-tab" onclick="switchDocTab('nda', this)">NDA</button>
+                <button class="panel-tab" onclick="switchDocTab('ip', this)">IP Agreement</button>
+            </div>
+
+            <!-- Partnership Form -->
+            <div id="docform-partnership" class="tab-content active">
+                <div class="panel-form">
+                    <div class="form-group"><label>Partner 1 Name</label><input type="text" id="p-name1" placeholder="Full name"></div>
+                    <div class="form-group"><label>Partner 1 Address</label><input type="text" id="p-addr1" placeholder="Address"></div>
+                    <div class="form-group"><label>Partner 2 Name</label><input type="text" id="p-name2" placeholder="Full name"></div>
+                    <div class="form-group"><label>Partner 2 Address</label><input type="text" id="p-addr2" placeholder="Address"></div>
+                    <div class="form-group"><label>Business Name</label><input type="text" id="p-biz" placeholder="Partnership name"></div>
+                    <div class="form-group"><label>Business Address</label><input type="text" id="p-bizaddr" placeholder="Business address"></div>
+                    <div class="form-group"><label>Nature of Business</label><input type="text" id="p-nature" placeholder="e.g. Technology"></div>
+                    <div class="form-group"><label>Start Date</label><input type="date" id="p-date"></div>
+                    <div class="form-group"><label>Partner 1 Capital (₹)</label><input type="number" id="p-cap1" placeholder="Amount"></div>
+                    <div class="form-group"><label>Partner 2 Capital (₹)</label><input type="number" id="p-cap2" placeholder="Amount"></div>
+                    <div class="form-group"><label>Partner 1 Profit Share (%)</label><input type="number" id="p-pct1" placeholder="%"></div>
+                    <div class="form-group"><label>Partner 2 Profit Share (%)</label><input type="number" id="p-pct2" placeholder="%"></div>
+                    <div class="form-group"><label>Notice Period</label><input type="text" id="p-notice" placeholder="e.g. 30 days"></div>
+                    <div class="form-group"><label>Your Email</label><input type="email" id="p-email" placeholder="email@example.com"></div>
+                    <button class="btn btn-primary btn-full" onclick="submitDoc('partnership')" id="btn-gen-partnership">
+                        <span>Generate Partnership Agreement</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- NDA Form -->
+            <div id="docform-nda" class="tab-content">
+                <div class="panel-form">
+                    <div class="form-group"><label>Disclosing Party Name</label><input type="text" id="n-company" placeholder="Company/Person name"></div>
+                    <div class="form-group"><label>Disclosing Party Address</label><input type="text" id="n-compaddr" placeholder="Address"></div>
+                    <div class="form-group"><label>Receiving Party Name</label><input type="text" id="n-customer" placeholder="Company/Person name"></div>
+                    <div class="form-group"><label>Receiving Party Address</label><input type="text" id="n-custaddr" placeholder="Address"></div>
+                    <div class="form-group"><label>Purpose of Disclosure</label><input type="text" id="n-transaction" placeholder="Transaction purpose"></div>
+                    <div class="form-group"><label>Date of Agreement</label><input type="date" id="n-date"></div>
+                    <div class="form-group"><label>Years After Termination</label><input type="number" id="n-termyear" placeholder="Years"></div>
+                    <div class="form-group"><label>Years After Expiry</label><input type="number" id="n-expyear" placeholder="Years"></div>
+                    <div class="form-group"><label>Your Email</label><input type="email" id="n-email" placeholder="email@example.com"></div>
+                    <button class="btn btn-primary btn-full" onclick="submitDoc('nda')" id="btn-gen-nda">
+                        <span>Generate NDA</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- IP Form -->
+            <div id="docform-ip" class="tab-content">
+                <div class="panel-form">
+                    <div class="form-group"><label>Date</label><input type="date" id="i-date"></div>
+                    <div class="form-group"><label>Employee Name</label><input type="text" id="i-empname" placeholder="Employee name"></div>
+                    <div class="form-group"><label>Employee Address</label><input type="text" id="i-empaddr" placeholder="Address"></div>
+                    <div class="form-group"><label>Employer Name</label><input type="text" id="i-ername" placeholder="Employer name"></div>
+                    <div class="form-group"><label>Employer Address</label><input type="text" id="i-eraddr" placeholder="Address"></div>
+                    <div class="form-group"><label>Invention 1</label><input type="text" id="i-inv1" placeholder="Description"></div>
+                    <div class="form-group"><label>Invention 2</label><input type="text" id="i-inv2" placeholder="Description"></div>
+                    <div class="form-group"><label>Invention 3</label><input type="text" id="i-inv3" placeholder="Description"></div>
+                    <div class="form-group"><label>Start Date</label><input type="date" id="i-start"></div>
+                    <div class="form-group"><label>End Date</label><input type="date" id="i-end"></div>
+                    <div class="form-group"><label>Governing Law</label><input type="text" id="i-law" placeholder="e.g. Indian Patent Act"></div>
+                    <div class="form-group"><label>Your Email</label><input type="email" id="i-email" placeholder="email@example.com"></div>
+                    <button class="btn btn-primary btn-full" onclick="submitDoc('ip')" id="btn-gen-ip">
+                        <span>Generate IP Agreement</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="docgen-result" class="result-box hidden"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer id="main-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <span class="logo-icon">⚖️</span>
+                <span class="logo-text">LAWEASE</span>
+                <p class="footer-tagline">Revolutionizing the Legal Landscape with AI</p>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 LawEase. Built with AI for Justice.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Chatbot Widget -->
     <div id="chatbot-container">
-        <div id="chatbot-message">May I help you?</div>
-        <div id="chatbot-icon" onclick="toggleChat()">💬</div>
+        <div id="chatbot-message">Need legal help? 💬</div>
+        <div id="chatbot-icon" onclick="toggleChat()">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+        </div>
     </div>
 
     <!-- Chat Window -->
     <div id="chat-container">
         <div id="chat-header">
-            AI Chatbot
-            <button onclick="toggleChat()">✖</button>
+            <div class="chat-header-info">
+                <div class="chat-avatar">⚖️</div>
+                <div>
+                    <span class="chat-name">LawEase AI</span>
+                    <span class="chat-status">Online</span>
+                </div>
+            </div>
+            <button onclick="toggleChat()" aria-label="Close Chat">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
-        <div id="chat-messages"></div>
+        <div id="chat-messages">
+            <div class="message bot-message">
+                <strong>LawEase AI:</strong> Hello! I'm your AI legal assistant. Ask me anything about law, rights, or legal procedures.
+            </div>
+        </div>
         <div id="chat-input-container">
-            <input type="text" id="user-input" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendMessage()">Send</button>
+            <input type="text" id="user-input" placeholder="Ask a legal question..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()" id="btn-send" aria-label="Send Message">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            </button>
         </div>
     </div>
 
-    </main>
-    <footer>
-        <div id="msg">
-            <h1><xmp><Lexaido AI></xmp></h1>
-            <h2>Revolutionizing the Legal Landscape</h2>
-        </div>
-        <div id="contatos">
-            <h1>Contact Us</h1>
-            <ul>
-                <li><img src="{{ url_for('static', filename='Images/gmail.png') }}" alt="gmail"> <a href="carloseduardo2006r@gmail.com"
-                        target="_blank">vanshika.2327cs1028@kiet.edu</a></li>
-                <li><img src="{{ url_for('static', filename='Images/gmail.png') }}" alt="instagram"><a href="https://www.instagram.com/eduardozl.035/"
-                        target="_blank">vanshika.2327cs1222@kiet.edu</a></li>
-                <li><img src="{{ url_for('static', filename='Images/gmail.png') }}" alt="github"> <a href="https://github.com/carloseduardori"
-                        target="_blank">aadish.2227cs1047@kiet.edu</a></li>
-                <li><img src="{{ url_for('static', filename='Images/gmail.png') }}" alt="github"> <a href="https://github.com/carloseduardori"
-                    target="_blank">kishan.2327cs1109@kiet.edu</a></li>
-            </ul>
-        </div>
-    </footer>
-<script>
-let menuButton = document.querySelector("#menu");
-let menu = document.querySelector(".menu");
-
-menuButton.addEventListener("click", function () {
-    menu.classList.toggle("open");
-});
-
-const botoesTelaCheia = document.querySelectorAll('.botao-tela-cheia');
-const iframes = document.querySelectorAll('iframe');
-
-botoesTelaCheia.forEach((botao, index) => {
-  botao.addEventListener('click', () => {
-    iframes[index].requestFullscreen();
-  });
-});
-</script>
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 
 </html>
