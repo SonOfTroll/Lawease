@@ -1,18 +1,14 @@
 {
     "builds": [
         {
-            "src": "chatboy/app.py",
+            "src": "app.py",
             "use": "@vercel/python"
         }
     ],
     "routes": [
         {
-            "src": "/static/(.*)",
-            "dest": "/chatboy/static/$1"
-        },
-        {
             "src": "/(.*)",
-            "dest": "/chatboy/app.py"
+            "dest": "/app.py"
         }
     ]
 }
