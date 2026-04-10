@@ -34,31 +34,13 @@ except Exception as e:
     cat_vectorizer = None
     category_info_df = None
 
-# Load outcome prediction model (trained on startup)
+# Load outcome prediction model (pre-trained offline)
 try:
-    justice_df = pd.read_csv("justice.csv")
-    justice_df.rename(columns={'facts': 'facts', 'first_party': 'first_party',
-                                'second_party': 'second_party', 'first_party_winner': 'winner_index'}, inplace=True)
-    if justice_df['winner_index'].isnull().any():
-        justice_df['winner_index'] = justice_df['winner_index'].fillna(0).astype(int)
-    justice_df['merged_facts'] = (justice_df['first_party'].fillna('') + " " +
-                                   justice_df['second_party'].fillna('') + " " +
-                                   justice_df['facts'].fillna(''))
-    justice_df.dropna(subset=['merged_facts'], inplace=True)
-
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
-
-    outcome_vectorizer = TfidfVectorizer(max_features=2000)
-    X = outcome_vectorizer.fit_transform(justice_df['merged_facts'])
-    y = justice_df['winner_index']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    outcome_model = LogisticRegression()
-    outcome_model.fit(X_train, y_train)
-    print("Outcome prediction model trained successfully.")
+    outcome_model = joblib.load("outcome_model.pkl")
+    outcome_vectorizer = joblib.load("outcome_vectorizer.pkl")
+    print("Outcome prediction model loaded successfully.")
 except Exception as e:
-    print(f"WARNING: Could not train outcome model: {e}")
+    print(f"WARNING: Could not load outcome model: {e}")
     outcome_model = None
     outcome_vectorizer = None
 
