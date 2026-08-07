@@ -1,569 +1,529 @@
-/* ============================================
-   LAWEASE — JavaScript v2
-   Three.js Constellation + GSAP + Service Panels
-   ============================================ */
+/* ==========================================================================
+   LawEase — case file behaviour
+   No animation library. The one orchestrated moment lives in CSS.
+   ========================================================================== */
 
-// ===== THREE.JS CONSTELLATION PARTICLE BACKGROUND =====
-(function initWebGL() {
-    const canvas = document.getElementById('webgl-canvas');
-    if (!canvas || typeof THREE === 'undefined') return;
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+function esc(value) {
+    const node = document.createElement('div');
+    node.appendChild(document.createTextNode(value == null ? '' : String(value)));
+    return node.innerHTML;
+}
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 35;
+function val(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
 
-    // Particles
-    const particleCount = 800;
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    const velocities = [];
+/* ===== Lamp switch ===================================================== */
 
-    const palette = [
-        new THREE.Color(0x7c6cff),
-        new THREE.Color(0xe040fb),
-        new THREE.Color(0x00e5ff),
-        new THREE.Color(0x9e92ff),
-    ];
+(function lamp() {
+    const root = document.documentElement;
+    const button = $('#lamp');
+    if (!button) return;
 
-    for (let i = 0; i < particleCount; i++) {
-        const i3 = i * 3;
-        positions[i3] = (Math.random() - 0.5) * 70;
-        positions[i3 + 1] = (Math.random() - 0.5) * 70;
-        positions[i3 + 2] = (Math.random() - 0.5) * 40;
+    const label = $('.lamp__label', button);
 
-        const c = palette[Math.floor(Math.random() * palette.length)];
-        colors[i3] = c.r;
-        colors[i3 + 1] = c.g;
-        colors[i3 + 2] = c.b;
-
-        velocities.push({
-            x: (Math.random() - 0.5) * 0.01,
-            y: (Math.random() - 0.5) * 0.01,
-            z: (Math.random() - 0.5) * 0.005
-        });
+    function apply(dark, remember) {
+        root.dataset.theme = dark ? 'dark' : 'light';
+        button.setAttribute('aria-pressed', String(dark));
+        // The label names what pressing it gives you, not the state you're in
+        label.textContent = dark ? 'Light' : 'Dark';
+        if (remember) {
+            try { localStorage.setItem('lawease-theme', dark ? 'dark' : 'light'); } catch { /* private mode */ }
+        }
     }
 
-    const pGeo = new THREE.BufferGeometry();
-    pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    apply(root.dataset.theme === 'dark', false);
+    button.addEventListener('click', () => apply(root.dataset.theme !== 'dark', true));
+})();
 
-    const pMat = new THREE.PointsMaterial({
-        size: 0.12,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.7,
-        blending: THREE.AdditiveBlending,
-        sizeAttenuation: true,
-    });
+/* ===== Index tabs follow the reader ==================================== */
 
-    const particles = new THREE.Points(pGeo, pMat);
-    scene.add(particles);
+(function trackTabs() {
+    const tabs = $$('.tab');
+    if (!tabs.length) return;
 
-    // Constellation lines
-    const lineGeo = new THREE.BufferGeometry();
-    const linePositions = new Float32Array(particleCount * 6);
-    lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const byId = new Map(tabs.map(tab => [tab.dataset.tab, tab]));
+    const parts = $$('.part');
+    if (!parts.length || !('IntersectionObserver' in window)) return;
 
-    const lineMat = new THREE.LineBasicMaterial({
-        color: 0x7c6cff,
-        transparent: true,
-        opacity: 0.06,
-        blending: THREE.AdditiveBlending,
-    });
+    const seen = new Set();
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) seen.add(entry.target.id);
+            else seen.delete(entry.target.id);
+        });
+        const current = parts.map(p => p.id).find(id => seen.has(id));
+        byId.forEach((tab, id) => tab.classList.toggle('is-here', id === current));
+    }, { rootMargin: '-25% 0px -60% 0px' });
 
-    const lines = new THREE.LineSegments(lineGeo, lineMat);
-    scene.add(lines);
+    parts.forEach(part => observer.observe(part));
+})();
 
-    let mouseX = 0, mouseY = 0, tmx = 0, tmy = 0;
-    document.addEventListener('mousemove', e => {
-        tmx = (e.clientX / window.innerWidth - 0.5) * 2;
-        tmy = (e.clientY / window.innerHeight - 0.5) * 2;
-    });
+/* ===== Switches (case tools, agreement types) ========================== */
 
-    window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-    });
+function wireSwitch(scope) {
+    const group = $('.switch', scope);
+    if (!group) return;
+    const buttons = $$('.switch__btn', group);
 
-    const clock = new THREE.Clock();
-    const connectionDist = 8;
-
-    function animate() {
-        requestAnimationFrame(animate);
-        const t = clock.getElapsedTime();
-
-        mouseX += (tmx - mouseX) * 0.04;
-        mouseY += (tmy - mouseY) * 0.04;
-
-        particles.rotation.x = t * 0.02 + mouseY * 0.15;
-        particles.rotation.y = t * 0.03 + mouseX * 0.15;
-
-        const pos = particles.geometry.attributes.position.array;
-        for (let i = 0; i < particleCount; i++) {
-            const i3 = i * 3;
-            pos[i3] += velocities[i].x;
-            pos[i3 + 1] += velocities[i].y + Math.sin(t + i * 0.1) * 0.003;
-            pos[i3 + 2] += velocities[i].z;
-
-            // Boundary wrap
-            if (Math.abs(pos[i3]) > 35) velocities[i].x *= -1;
-            if (Math.abs(pos[i3 + 1]) > 35) velocities[i].y *= -1;
-            if (Math.abs(pos[i3 + 2]) > 20) velocities[i].z *= -1;
-        }
-        particles.geometry.attributes.position.needsUpdate = true;
-
-        // Draw connections (limited for performance)
-        let lIdx = 0;
-        const lPos = lines.geometry.attributes.position.array;
-        const maxLines = 200;
-        let lCount = 0;
-
-        for (let i = 0; i < particleCount && lCount < maxLines; i++) {
-            for (let j = i + 1; j < particleCount && lCount < maxLines; j++) {
-                const dx = pos[i * 3] - pos[j * 3];
-                const dy = pos[i * 3 + 1] - pos[j * 3 + 1];
-                const dz = pos[i * 3 + 2] - pos[j * 3 + 2];
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-                if (dist < connectionDist) {
-                    lPos[lIdx++] = pos[i * 3];
-                    lPos[lIdx++] = pos[i * 3 + 1];
-                    lPos[lIdx++] = pos[i * 3 + 2];
-                    lPos[lIdx++] = pos[j * 3];
-                    lPos[lIdx++] = pos[j * 3 + 1];
-                    lPos[lIdx++] = pos[j * 3 + 2];
-                    lCount++;
+    buttons.forEach(button => {
+        button.addEventListener('click', () => {
+            buttons.forEach(other => {
+                const on = other === button;
+                other.classList.toggle('is-on', on);
+                other.setAttribute('aria-selected', String(on));
+                const pane = document.getElementById(other.getAttribute('aria-controls'));
+                if (pane) {
+                    pane.hidden = !on;
+                    pane.classList.toggle('is-on', on);
                 }
+            });
+        });
+    });
+}
+
+$$('.part').forEach(wireSwitch);
+
+/* ===== Shared result helpers =========================================== */
+
+function working(box, label) {
+    box.hidden = false;
+    box.innerHTML = `<p class="working">${esc(label)}</p>`;
+}
+
+function problem(box, message) {
+    box.hidden = false;
+    box.innerHTML = `<p class="note"><strong>Didn&rsquo;t work.</strong> ${esc(message)}</p>`;
+}
+
+function busy(button, label) {
+    button.dataset.idle = button.textContent;
+    button.textContent = label;
+    button.disabled = true;
+}
+
+function idle(button) {
+    if (button.dataset.idle) button.textContent = button.dataset.idle;
+    button.disabled = false;
+}
+
+async function readJSON(response) {
+    const data = await response.json().catch(() => ({}));
+    if (data.error) throw new Error(data.error);
+    if (!response.ok) throw new Error('The server did not answer properly.');
+    return data;
+}
+
+/* ===== Tab A — Contract X-Ray ========================================== */
+
+const LEAN_LABEL = {
+    yours: 'Favours you',
+    neutral: 'Even-handed',
+    theirs: 'Favours them',
+    redflag: 'Red flag'
+};
+
+const SAMPLE_NDA = `MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Agreement is made on 12 March 2026 between Kestrel Labs Private Limited, a company incorporated under the Companies Act, 2013, having its registered office at 4th Floor, Ashirwad Complex, Indiranagar, Bengaluru 560038 ("the Disclosing Party"), and Ananya Rao, resident of 22 Nandi Durga Road, Bengaluru 560046 ("the Receiving Party").
+
+1. PURPOSE. The Disclosing Party wishes to share certain information with the Receiving Party for the sole purpose of evaluating a possible engagement as a contract engineer (the "Purpose").
+
+2. CONFIDENTIAL INFORMATION. "Confidential Information" means all information disclosed in any form, whether or not marked confidential, including but not limited to source code, designs, customer lists, pricing, business plans, and any information disclosed orally in meetings or calls.
+
+3. OBLIGATIONS. The Receiving Party shall hold all Confidential Information in strict confidence, shall not disclose it to any third party, and shall use it solely for the Purpose. The Receiving Party shall be liable for any disclosure by its employees, agents or advisers.
+
+4. INDEMNITY. The Receiving Party shall indemnify, defend and hold harmless the Disclosing Party from and against any and all claims, losses, liabilities, damages, costs and expenses (including reasonable attorneys' fees) arising out of any breach of this Agreement, without limitation as to amount or duration.
+
+5. RETURN OF MATERIALS. Upon written request the Receiving Party shall promptly return or destroy all Confidential Information in its possession and shall certify such destruction in writing within seven (7) days.
+
+6. NO LICENCE. Nothing in this Agreement grants the Receiving Party any licence, right, title or interest in any intellectual property of the Disclosing Party.
+
+7. TERM. The obligations in this Agreement shall continue for a period of five (5) years following termination or expiry of this Agreement.
+
+8. REMEDIES. The Receiving Party acknowledges that damages alone would be an inadequate remedy and agrees that the Disclosing Party shall be entitled to injunctive relief without the requirement to post bond or prove actual damage.
+
+9. GOVERNING LAW. This Agreement shall be governed by the laws of India, and the parties submit to the exclusive jurisdiction of the courts at Bengaluru.
+
+10. ENTIRE AGREEMENT. This Agreement supersedes all prior discussions and may be amended only in writing signed by both parties.`;
+
+const sampleButton = $('#xray-sample');
+if (sampleButton) {
+    sampleButton.addEventListener('click', () => {
+        const box = $('#xray-text');
+        box.value = SAMPLE_NDA;
+        $('#xray-party').value = 'the Receiving Party';
+        box.focus();
+        box.setSelectionRange(0, 0);
+        box.scrollTop = 0;
+    });
+}
+
+const fileInput = $('#xray-file');
+if (fileInput) {
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        const label = $('#xray-file-label');
+        label.textContent = file ? file.name : 'Choose a PDF or text file';
+        fileInput.closest('.file-pick').classList.toggle('is-loaded', Boolean(file));
+    });
+}
+
+function renderXray(box, data) {
+    const clauses = data.clauses || [];
+    const gaps = data.missing || [];
+    const tally = data.tally || {};
+
+    const chips = ['redflag', 'theirs', 'neutral', 'yours']
+        .filter(lean => tally[lean])
+        .map(lean => `<span class="flag flag--${lean}">${tally[lean]} ${esc(LEAN_LABEL[lean])}</span>`)
+        .join('');
+
+    const clauseRows = clauses.map(clause => `
+        <div class="clause${clause.lean === 'redflag' ? ' is-redflag' : ''}">
+            <p class="clause__ref">${esc(clause.ref || '—')}</p>
+            <div class="clause__head">
+                <h4 class="clause__name">${esc(clause.heading)}</h4>
+                <span class="flag flag--${clause.lean}">${esc(LEAN_LABEL[clause.lean] || 'Even-handed')}</span>
+            </div>
+            <p class="clause__plain">${esc(clause.plain)}</p>
+            ${clause.why ? `<p class="clause__why">${esc(clause.why)}</p>` : ''}
+            ${clause.quote ? `<p class="clause__quote">&ldquo;${esc(clause.quote)}&rdquo;</p>` : ''}
+        </div>`).join('');
+
+    const gapRows = gaps.map(gap => `
+        <div class="gap">
+            <p class="gap__item">${esc(gap.item)}</p>
+            ${gap.why ? `<p class="gap__why">${esc(gap.why)}</p>` : ''}
+        </div>`).join('');
+
+    box.hidden = false;
+    box.innerHTML = `
+        <div class="out__head">
+            <h3 class="out__title">${esc(data.document_type)}</h3>
+            <p class="out__meta">${clauses.length} clause${clauses.length === 1 ? '' : 's'} read</p>
+        </div>
+        ${data.summary ? `<p class="note">${esc(data.summary)}</p>` : ''}
+        ${data.parties.length ? `<p class="out__sub">Between ${esc(data.parties.join(' and '))}</p>` : ''}
+        ${data.truncated ? '<p class="note">This contract was long, so only the first part was read. Paste the rest separately.</p>' : ''}
+        ${chips ? `<div class="tally">${chips}</div>` : ''}
+        ${clauseRows}
+        ${gapRows ? `
+            <p class="out__sub">Protections this contract leaves out</p>
+            <div class="gaps">
+                <span class="gaps__stamp">Not in this document</span>
+                ${gapRows}
+            </div>` : ''}`;
+}
+
+const btnXray = $('#btn-xray');
+if (btnXray) {
+    btnXray.addEventListener('click', async () => {
+        const box = $('#xray-out');
+        const text = val('xray-text');
+        const party = val('xray-party');
+        const file = fileInput && fileInput.files[0];
+
+        if (!file && text.length < 200) {
+            problem(box, 'Paste at least a few clauses, or upload the file.');
+            return;
+        }
+
+        busy(btnXray, 'Reading…');
+        working(box, 'Reading the contract');
+
+        try {
+            let response;
+            if (file) {
+                const body = new FormData();
+                body.append('file', file);
+                body.append('party', party);
+                response = await fetch('/api/xray', { method: 'POST', body });
+            } else {
+                response = await fetch('/api/xray', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, party })
+                });
             }
+            renderXray(box, await readJSON(response));
+        } catch (err) {
+            problem(box, err.message || 'Something went wrong on the way to the server.');
+        } finally {
+            idle(btnXray);
+        }
+    });
+}
+
+/* ===== Tab B — nearest decided cases =================================== */
+
+function renderPrediction(box, data) {
+    const cal = data.calibration || {};
+    const cases = data.precedents || [];
+    const tally = data.precedent_tally || {};
+    const drivers = data.drivers || {};
+
+    const caseRows = cases.map(c => `
+        <div class="case">
+            <p class="case__term">${esc(c.term)}</p>
+            <p class="case__name"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a></p>
+            <p class="case__held">${esc(c.disposition || 'disposition not recorded')} &middot;
+                ${c.petitioner_won ? 'first party won' : 'first party lost'}</p>
+            <p class="case__sim">${esc(c.similarity)}%
+                <span class="case__simbar" style="width:${Math.max(4, Math.round(c.similarity))}px"></span>
+            </p>
+        </div>`).join('');
+
+    const termList = (list, side) => (list || []).map(t => `
+        <div class="term">
+            <span class="term__bar" style="width:${Math.max(4, Math.round(t.weight * 220))}px"></span>
+            <span class="term__word">${esc(t.term)}</span>
+        </div>`).join('') || `<p class="hint">No ${side} terms carried weight.</p>`;
+
+    box.hidden = false;
+    box.innerHTML = `
+        <div class="out__head">
+            <h3 class="out__title">${cases.length ? `${tally.petitioner} of ${cases.length} nearest cases went to the first party` : 'No close matches in the record'}</h3>
+            <p class="out__meta">${esc(cal.n_cases)} cases searched</p>
+        </div>
+
+        ${caseRows ? `<div class="cases">${caseRows}</div>` : '<p class="note">Nothing in the record resembles these facts closely enough to be useful.</p>'}
+
+        <p class="out__sub">What the model says</p>
+        <div class="odds">
+            <div class="odds__bar">
+                <div class="odds__seg odds__seg--p" style="width:${data.petitioner}%">${data.petitioner}%</div>
+                <div class="odds__seg odds__seg--r" style="width:${data.respondent}%">${data.respondent}%</div>
+                <div class="odds__tick" style="left:${cal.base_rate}%"></div>
+            </div>
+            <div class="odds__tickmark">
+                <span class="odds__ticklabel" style="left:${cal.base_rate}%">
+                    ${cal.base_rate}% — the average case
+                </span>
+            </div>
+            <div class="odds__legend">
+                <span>First party</span>
+                <span>Second party</span>
+            </div>
+        </div>
+        <p class="note">
+            <strong>Read the cases, not the percentage.</strong>
+            This model scores ${cal.accuracy}% on held-out cases; always guessing &ldquo;first party wins&rdquo;
+            scores ${cal.base_rate}%. It beats nothing. The red tick shows where a typical case sits, so you
+            can see how far these facts move it &mdash; and how little that means.
+        </p>
+
+        <p class="out__sub">Words the model weighted</p>
+        <div class="drivers">
+            <div>
+                <p class="driver__side">Toward the first party</p>
+                ${termList(drivers.petitioner, 'first-party')}
+            </div>
+            <div>
+                <p class="driver__side">Toward the second party</p>
+                ${termList(drivers.respondent, 'second-party')}
+            </div>
+        </div>`;
+}
+
+const btnPredict = $('#btn-predict');
+if (btnPredict) {
+    btnPredict.addEventListener('click', async () => {
+        const box = $('#predict-out');
+        const first_party = val('pred-first-party');
+        const second_party = val('pred-second-party');
+        const facts = val('pred-facts');
+
+        if (!first_party || !second_party) {
+            problem(box, 'Name both parties.');
+            return;
+        }
+        if (facts.length < 20) {
+            problem(box, 'Describe the facts in at least 20 characters.');
+            return;
         }
 
-        for (let k = lIdx; k < lPos.length; k++) lPos[k] = 0;
-        lines.geometry.attributes.position.needsUpdate = true;
-        lines.geometry.setDrawRange(0, lCount * 2);
+        busy(btnPredict, 'Searching…');
+        working(box, 'Searching 3,303 decided cases');
 
-        renderer.render(scene, camera);
-    }
-
-    animate();
-})();
-
-
-// ===== CURSOR GLOW =====
-(function initCursorGlow() {
-    const glow = document.getElementById('cursor-glow');
-    if (!glow) return;
-
-    let cx = 0, cy = 0;
-    document.addEventListener('mousemove', e => {
-        cx = e.clientX;
-        cy = e.clientY;
+        try {
+            const response = await fetch('/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ first_party, second_party, facts })
+            });
+            renderPrediction(box, await readJSON(response));
+        } catch (err) {
+            problem(box, err.message || 'Something went wrong on the way to the server.');
+        } finally {
+            idle(btnPredict);
+        }
     });
+}
 
-    function updateGlow() {
-        glow.style.left = cx + 'px';
-        glow.style.top = cy + 'px';
-        requestAnimationFrame(updateGlow);
+/* ===== Tab B — area of law ============================================= */
+
+const btnClassify = $('#btn-classify');
+if (btnClassify) {
+    btnClassify.addEventListener('click', async () => {
+        const box = $('#classify-out');
+        const facts = val('classify-facts');
+
+        if (!facts) {
+            problem(box, 'Describe what happened first.');
+            return;
+        }
+
+        busy(btnClassify, 'Reading…');
+        working(box, 'Matching against known areas');
+
+        try {
+            const response = await fetch('/api/classify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ facts })
+            });
+            const data = await readJSON(response);
+            const d = data.details || {};
+
+            box.hidden = false;
+            box.innerHTML = `
+                <div class="out__head">
+                    <h3 class="out__title">${esc(data.category)}</h3>
+                    <p class="out__meta">US category labels</p>
+                </div>
+                ${d.description ? `<p class="note">${esc(d.description)}</p>` : ''}
+                ${d.documents && d.documents.length ? `
+                    <p class="out__sub">Papers to gather</p>
+                    ${d.documents.map(doc => `<div class="gap"><p class="gap__item">${esc(doc)}</p></div>`).join('')}` : ''}
+                ${d.next_steps ? `
+                    <p class="out__sub">What to do next</p>
+                    <p class="clause__plain">${esc(d.next_steps)}</p>` : ''}
+                ${data.kanoon_link ? `
+                    <p class="out__sub">Read further</p>
+                    <p class="clause__plain"><a href="${esc(data.kanoon_link)}" target="_blank" rel="noopener">Search this area on Indian Kanoon</a></p>` : ''}`;
+        } catch (err) {
+            problem(box, err.message || 'Something went wrong on the way to the server.');
+        } finally {
+            idle(btnClassify);
+        }
+    });
+}
+
+/* ===== Tab C — draft a document ======================================== */
+
+const DOC_FIELDS = {
+    partnership: {
+        'Name 1': 'p-name1', 'Address1': 'p-addr1', 'Name 2': 'p-name2', 'Address 2': 'p-addr2',
+        'Partnership Name': 'p-biz', 'Business Address': 'p-bizaddr', 'Nature of Business': 'p-nature',
+        'Start Date': 'p-date', 'Amount 1': 'p-cap1', 'Amount 2': 'p-cap2',
+        'Percentage1': 'p-pct1', 'Percentage2': 'p-pct2', 'Notice Period': 'p-notice', 'email': 'p-email'
+    },
+    nda: {
+        'company_name': 'n-company', 'company_address': 'n-compaddr', 'customer_name': 'n-customer',
+        'company_adress': 'n-custaddr', 'Transaction': 'n-transaction', 'date': 'n-date',
+        'Termination_year': 'n-termyear', 'Expiry_year': 'n-expyear', 'email': 'n-email'
+    },
+    ip: {
+        'date': 'i-date', 'name1': 'i-empname', 'address1': 'i-empaddr', 'name2': 'i-ername',
+        'address2': 'i-eraddr', 'invention1': 'i-inv1', 'invention2': 'i-inv2', 'invention3': 'i-inv3',
+        'date_of_beginning': 'i-start', 'end_date': 'i-end', 'law': 'i-law', 'email': 'i-email'
     }
-    updateGlow();
-})();
+};
 
+$$('[data-doc]').forEach(button => {
+    button.addEventListener('click', async () => {
+        const type = button.dataset.doc;
+        const box = $('#docgen-out');
+        const data = {};
+        Object.entries(DOC_FIELDS[type]).forEach(([key, id]) => { data[key] = val(id); });
 
-// ===== LOADING SCREEN =====
-window.addEventListener('load', () => {
-    const loader = document.getElementById('loader');
-    if (!loader) return;
+        if (!data.email) {
+            problem(box, 'Add the email address to send the PDF to.');
+            return;
+        }
 
-    gsap.to(loader, {
-        opacity: 0,
-        duration: 0.5,
-        delay: 1.8,
-        ease: 'power2.inOut',
-        onComplete: () => {
-            loader.style.display = 'none';
-            initAnimations();
+        busy(button, 'Drafting…');
+        working(box, 'Drafting and sending');
+
+        try {
+            const response = await fetch('/api/docgen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, data })
+            });
+            const result = await readJSON(response);
+            box.hidden = false;
+            box.innerHTML = `<p class="note"><strong>Sent.</strong> ${esc(result.message)}</p>`;
+        } catch (err) {
+            problem(box, err.message || 'Something went wrong on the way to the server.');
+        } finally {
+            idle(button);
         }
     });
 });
 
+/* ===== Counsel ========================================================== */
 
-// ===== GSAP ANIMATIONS =====
-function initAnimations() {
-    gsap.registerPlugin(ScrollTrigger);
+(function counsel() {
+    const panel = $('#counsel');
+    const opener = $('#counsel-open');
+    const closer = $('#counsel-close');
+    const form = $('#counsel-form');
+    const input = $('#counsel-input');
+    const log = $('#counsel-log');
+    if (!panel || !opener || !form) return;
 
-    const heroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
-    heroTL
-        .to('#hero-badge', { opacity: 1, y: 0, duration: 0.6 }, 0.1)
-        .to('.hero-line', { opacity: 1, y: 0, duration: 0.9, stagger: 0.15 }, 0.3)
-        .to('#hero-subtitle', { opacity: 1, y: 0, duration: 0.7 }, 0.8)
-        .to('#hero-cta', { opacity: 1, y: 0, duration: 0.6 }, 1.0)
-        .to('#hero-stats', { opacity: 1, y: 0, duration: 0.6 }, 1.2);
+    function setOpen(open) {
+        panel.hidden = !open;
+        opener.hidden = open;
+        opener.setAttribute('aria-expanded', String(open));
+        if (open) input.focus();
+        else opener.focus();
+    }
 
-    // Stat counters
-    document.querySelectorAll('.stat-number').forEach(stat => {
-        const target = parseInt(stat.dataset.target);
-        gsap.to(stat, {
-            textContent: target, duration: 2, delay: 2.2, ease: 'power2.out',
-            snap: { textContent: 1 },
-            onUpdate: function () { stat.textContent = Math.round(this.targets()[0].textContent); }
-        });
+    opener.addEventListener('click', () => setOpen(true));
+    closer.addEventListener('click', () => setOpen(false));
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !panel.hidden) setOpen(false);
     });
 
-    // About
-    gsap.to('#about-label', { opacity: 1, y: 0, duration: 0.5, scrollTrigger: { trigger: '#about', start: 'top 80%' } });
-    gsap.to('#about-title', { opacity: 1, y: 0, duration: 0.6, scrollTrigger: { trigger: '#about', start: 'top 75%' } });
-    gsap.utils.toArray('.about-card').forEach((card, i) => {
-        gsap.to(card, { opacity: 1, y: 0, duration: 0.6, delay: i * 0.1, scrollTrigger: { trigger: card, start: 'top 85%' } });
-    });
+    function addTurn(kind, text) {
+        const turn = document.createElement('div');
+        turn.className = `turn turn--${kind}`;
+        const p = document.createElement('p');
+        p.textContent = text;
+        turn.appendChild(p);
+        log.appendChild(turn);
+        log.scrollTop = log.scrollHeight;
+        return turn;
+    }
 
-    // Services
-    gsap.to('#services-label', { opacity: 1, y: 0, duration: 0.5, scrollTrigger: { trigger: '#services', start: 'top 80%' } });
-    gsap.to('#services-title', { opacity: 1, y: 0, duration: 0.6, scrollTrigger: { trigger: '#services', start: 'top 75%' } });
-    gsap.utils.toArray('.service-card').forEach((card, i) => {
-        gsap.to(card, { opacity: 1, y: 0, duration: 0.7, delay: i * 0.15, scrollTrigger: { trigger: card, start: 'top 85%' } });
-    });
-}
-
-
-// ===== NAVIGATION =====
-const header = document.getElementById('main-header');
-window.addEventListener('scroll', () => {
-    header.classList.toggle('scrolled', window.scrollY > 50);
-});
-
-const navToggle = document.getElementById('nav-toggle');
-const navLinks = document.getElementById('nav-links');
-if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-        navToggle.classList.toggle('active');
-        navLinks.classList.toggle('open');
-    });
-    navLinks.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            navToggle.classList.remove('active');
-            navLinks.classList.remove('open');
-        });
-    });
-}
-
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
+    form.addEventListener('submit', async e => {
         e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-});
+        const question = input.value.trim();
+        if (!question) return;
 
+        addTurn('you', question);
+        input.value = '';
+        const waiting = addTurn('bot turn--wait', 'Thinking');
 
-// ===== SERVICE PANELS =====
-function openPanel(type) {
-    const panel = document.getElementById('panel-' + type);
-    if (!panel) return;
-
-    panel.classList.add('open');
-    document.body.style.overflow = 'hidden';
-
-    gsap.to(panel, { opacity: 1, duration: 0.3 });
-    gsap.to(panel.querySelector('.panel-content'), {
-        x: 0, duration: 0.5, ease: 'power3.out'
-    });
-}
-
-function closePanel(type) {
-    const panel = document.getElementById('panel-' + type);
-    if (!panel) return;
-
-    gsap.to(panel.querySelector('.panel-content'), {
-        x: '100%', duration: 0.4, ease: 'power3.in'
-    });
-    gsap.to(panel, {
-        opacity: 0, duration: 0.3, delay: 0.2,
-        onComplete: () => {
-            panel.classList.remove('open');
-            document.body.style.overflow = '';
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: question })
+            });
+            const data = await response.json();
+            waiting.remove();
+            addTurn('bot', data.response || 'No answer came back.');
+        } catch {
+            waiting.remove();
+            addTurn('bot', 'The connection dropped. Ask again.');
         }
     });
-}
-
-// Tab switching for prediction panel
-function switchTab(tabName, btn) {
-    document.querySelectorAll('#panel-prediction .tab-content').forEach(tc => tc.classList.remove('active'));
-    document.querySelectorAll('#panel-prediction .panel-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + tabName).classList.add('active');
-    btn.classList.add('active');
-}
-
-// Tab switching for docgen panel
-function switchDocTab(tabName, btn) {
-    document.querySelectorAll('#panel-docgen .tab-content').forEach(tc => tc.classList.remove('active'));
-    document.querySelectorAll('#panel-docgen .panel-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('docform-' + tabName).classList.add('active');
-    btn.classList.add('active');
-}
-
-
-// ===== API CALLS =====
-
-// Predict outcome
-function predictOutcome() {
-    const btn = document.getElementById('btn-predict');
-    const firstParty = document.getElementById('pred-first-party').value.trim();
-    const secondParty = document.getElementById('pred-second-party').value.trim();
-    const facts = document.getElementById('pred-facts').value.trim();
-    const resultBox = document.getElementById('prediction-result');
-
-    if (!firstParty || !secondParty || !facts || facts.length < 20) {
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = '<h4>⚠️ Validation Error</h4><p class="result-item">Please fill all fields. Case facts must be at least 20 characters.</p>';
-        return;
-    }
-
-    btn.querySelector('span').textContent = 'Predicting...';
-    btn.disabled = true;
-
-    fetch('/api/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_party: firstParty, second_party: secondParty, facts })
-    })
-    .then(r => r.json())
-    .then(data => {
-        btn.querySelector('span').textContent = 'Predict Outcome';
-        btn.disabled = false;
-
-        if (data.error) {
-            resultBox.classList.remove('hidden');
-            resultBox.innerHTML = `<h4>⚠️ Error</h4><p class="result-item">${escapeHTML(data.error)}</p>`;
-            return;
-        }
-
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = `
-            <h4>📊 Prediction Result</h4>
-            <div class="prob-bar-container">
-                <div class="prob-bar-label"><strong>Petitioner</strong><span>${data.petitioner}%</span></div>
-                <div class="prob-bar"><div class="prob-bar-fill petitioner" style="width: 0%"></div></div>
-            </div>
-            <div class="prob-bar-container">
-                <div class="prob-bar-label"><strong>Respondent</strong><span>${data.respondent}%</span></div>
-                <div class="prob-bar"><div class="prob-bar-fill respondent" style="width: 0%"></div></div>
-            </div>
-        `;
-
-        // Animate bars
-        setTimeout(() => {
-            resultBox.querySelector('.petitioner').style.width = data.petitioner + '%';
-            resultBox.querySelector('.respondent').style.width = data.respondent + '%';
-        }, 100);
-    })
-    .catch(() => {
-        btn.querySelector('span').textContent = 'Predict Outcome';
-        btn.disabled = false;
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = '<h4>⚠️ Error</h4><p class="result-item">Network error. Please try again.</p>';
-    });
-}
-
-// Classify case
-function classifyCase() {
-    const btn = document.getElementById('btn-classify');
-    const facts = document.getElementById('classify-facts').value.trim();
-    const resultBox = document.getElementById('classify-result');
-
-    if (!facts) {
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = '<h4>⚠️ Validation Error</h4><p class="result-item">Please enter case details.</p>';
-        return;
-    }
-
-    btn.querySelector('span').textContent = 'Classifying...';
-    btn.disabled = true;
-
-    fetch('/api/classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facts })
-    })
-    .then(r => r.json())
-    .then(data => {
-        btn.querySelector('span').textContent = 'Classify Case';
-        btn.disabled = false;
-
-        if (data.error) {
-            resultBox.classList.remove('hidden');
-            resultBox.innerHTML = `<h4>⚠️ Error</h4><p class="result-item">${escapeHTML(data.error)}</p>`;
-            return;
-        }
-
-        let html = `<h4>🏛️ ${escapeHTML(data.category)}</h4>`;
-        if (data.details.description) html += `<p class="result-item"><strong>Description:</strong> ${escapeHTML(data.details.description)}</p>`;
-        if (data.details.documents && data.details.documents.length) {
-            html += `<p class="result-item"><strong>Required Documents:</strong></p><ul style="margin: 4px 0 8px 20px; color: var(--text-secondary);">`;
-            data.details.documents.forEach(d => { html += `<li>${escapeHTML(d)}</li>`; });
-            html += '</ul>';
-        }
-        if (data.details.next_steps) html += `<p class="result-item"><strong>Next Steps:</strong> ${escapeHTML(data.details.next_steps)}</p>`;
-        if (data.kanoon_link) html += `<a href="${data.kanoon_link}" target="_blank" class="result-link">📖 Read Similar Cases on Indian Kanoon</a>`;
-
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = html;
-    })
-    .catch(() => {
-        btn.querySelector('span').textContent = 'Classify Case';
-        btn.disabled = false;
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = '<h4>⚠️ Error</h4><p class="result-item">Network error. Please try again.</p>';
-    });
-}
-
-// Document Generation
-function submitDoc(type) {
-    const resultBox = document.getElementById('docgen-result');
-    const formData = {};
-
-    // Gather form fields based on type
-    if (type === 'partnership') {
-        formData['Name 1'] = document.getElementById('p-name1').value;
-        formData['Address1'] = document.getElementById('p-addr1').value;
-        formData['Name 2'] = document.getElementById('p-name2').value;
-        formData['Address 2'] = document.getElementById('p-addr2').value;
-        formData['Partnership Name'] = document.getElementById('p-biz').value;
-        formData['Business Address'] = document.getElementById('p-bizaddr').value;
-        formData['Nature of Business'] = document.getElementById('p-nature').value;
-        formData['Start Date'] = document.getElementById('p-date').value;
-        formData['Amount 1'] = document.getElementById('p-cap1').value;
-        formData['Amount 2'] = document.getElementById('p-cap2').value;
-        formData['Percentage1'] = document.getElementById('p-pct1').value;
-        formData['Percentage2'] = document.getElementById('p-pct2').value;
-        formData['Notice Period'] = document.getElementById('p-notice').value;
-        formData['email'] = document.getElementById('p-email').value;
-    } else if (type === 'nda') {
-        formData['company_name'] = document.getElementById('n-company').value;
-        formData['company_address'] = document.getElementById('n-compaddr').value;
-        formData['customer_name'] = document.getElementById('n-customer').value;
-        formData['company_adress'] = document.getElementById('n-custaddr').value;
-        formData['Transaction'] = document.getElementById('n-transaction').value;
-        formData['date'] = document.getElementById('n-date').value;
-        formData['Termination_year'] = document.getElementById('n-termyear').value;
-        formData['Expiry_year'] = document.getElementById('n-expyear').value;
-        formData['email'] = document.getElementById('n-email').value;
-    } else if (type === 'ip') {
-        formData['date'] = document.getElementById('i-date').value;
-        formData['name1'] = document.getElementById('i-empname').value;
-        formData['address1'] = document.getElementById('i-empaddr').value;
-        formData['name2'] = document.getElementById('i-ername').value;
-        formData['address2'] = document.getElementById('i-eraddr').value;
-        formData['invention1'] = document.getElementById('i-inv1').value;
-        formData['invention2'] = document.getElementById('i-inv2').value;
-        formData['invention3'] = document.getElementById('i-inv3').value;
-        formData['date_of_beginning'] = document.getElementById('i-start').value;
-        formData['end_date'] = document.getElementById('i-end').value;
-        formData['law'] = document.getElementById('i-law').value;
-        formData['email'] = document.getElementById('i-email').value;
-    }
-
-    fetch('/api/docgen', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data: formData })
-    })
-    .then(r => r.json())
-    .then(data => {
-        resultBox.classList.remove('hidden');
-        if (data.success) {
-            resultBox.innerHTML = `<h4>✅ Document Prepared</h4><p class="result-item">${escapeHTML(data.message)}</p>`;
-        } else {
-            resultBox.innerHTML = `<h4>⚠️ Error</h4><p class="result-item">${escapeHTML(data.error || 'Unknown error')}</p>`;
-        }
-    })
-    .catch(() => {
-        resultBox.classList.remove('hidden');
-        resultBox.innerHTML = '<h4>⚠️ Error</h4><p class="result-item">Network error. Please try again.</p>';
-    });
-}
-
-
-// ===== CHATBOT =====
-function toggleChat() {
-    const chatContainer = document.getElementById('chat-container');
-    const chatbotContainer = document.getElementById('chatbot-container');
-    if (!chatContainer || !chatbotContainer) return;
-
-    const isOpen = chatContainer.style.display === 'flex';
-
-    if (isOpen) {
-        gsap.to(chatContainer, {
-            opacity: 0, y: 20, scale: 0.95, duration: 0.3, ease: 'power2.inOut',
-            onComplete: () => {
-                chatContainer.style.display = 'none';
-                chatbotContainer.classList.remove('chat-open');
-            }
-        });
-    } else {
-        chatContainer.style.display = 'flex';
-        chatbotContainer.classList.add('chat-open');
-        gsap.fromTo(chatContainer,
-            { opacity: 0, y: 20, scale: 0.95 },
-            { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: 'back.out(1.5)' }
-        );
-        document.getElementById('user-input').focus();
-    }
-}
-
-function sendMessage() {
-    const inputField = document.getElementById('user-input');
-    const message = inputField.value.trim();
-    if (message === '') return;
-
-    const chatMessages = document.getElementById('chat-messages');
-
-    const userMsg = document.createElement('div');
-    userMsg.classList.add('message', 'user-message');
-    userMsg.innerHTML = `<strong>You:</strong> ${escapeHTML(message)}`;
-    chatMessages.appendChild(userMsg);
-    inputField.value = '';
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    const botTyping = document.createElement('div');
-    botTyping.classList.add('message', 'bot-message', 'typing');
-    botTyping.innerHTML = '<span></span><span></span><span></span>';
-    chatMessages.appendChild(botTyping);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
-    })
-    .then(r => r.json())
-    .then(data => {
-        chatMessages.removeChild(botTyping);
-        const botMsg = document.createElement('div');
-        botMsg.classList.add('message', 'bot-message');
-        botMsg.innerHTML = `<strong>LawEase AI:</strong> ${escapeHTML(data.response)}`;
-        chatMessages.appendChild(botMsg);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    })
-    .catch(() => {
-        chatMessages.removeChild(botTyping);
-        const errMsg = document.createElement('div');
-        errMsg.classList.add('message', 'bot-message');
-        errMsg.innerHTML = '<strong>LawEase AI:</strong> Sorry, something went wrong. Please try again.';
-        chatMessages.appendChild(errMsg);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
-}
-
-function handleKeyPress(event) {
-    if (event.key === 'Enter') sendMessage();
-}
-
-function escapeHTML(str) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-}
+})();

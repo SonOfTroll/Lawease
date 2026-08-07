@@ -2,10 +2,11 @@ from flask import Flask, request, jsonify, render_template
 import cohere
 from dotenv import load_dotenv
 import os
-import joblib
-import pandas as pd
-import numpy as np
+import json
 import re
+import joblib
+import numpy as np
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -16,21 +17,47 @@ from config import AGREEMENT_CONFIGS
 from utils.google_sheets import append_to_sheet
 from utils.google_docs import fill_template_and_export
 from utils.email_sender import send_email_with_attachment
+from utils.contract_xray import (
+    MAX_CONTRACT_CHARS,
+    build_xray_prompt,
+    extract_text_from_upload,
+    normalise_xray,
+    parse_json_block,
+)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def find_artifact(filename):
+    """Model artefacts live either at the project root or under Layer/."""
+    for candidate in (os.path.join(BASE_DIR, filename),
+                      os.path.join(BASE_DIR, "Layer", filename)):
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def load_artifact(filename):
+    path = find_artifact(filename)
+    if path is None:
+        raise FileNotFoundError(f"{filename} not found in project root or Layer/")
+    return joblib.load(path)
+
 
 # ===== COHERE CHATBOT SETUP =====
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+COHERE_MODEL = "command-r-plus-08-2024"
 if not COHERE_API_KEY:
-    print("WARNING: COHERE_API_KEY not set. Chatbot will not work.")
+    print("WARNING: COHERE_API_KEY not set. Chatbot and Contract X-Ray will not work.")
     co = None
 else:
     co = cohere.Client(COHERE_API_KEY)
 
 # ===== CASE PREDICTION ML MODELS =====
-# Load category classification model
 try:
-    cat_model = joblib.load("case_category_model.pkl")
-    cat_vectorizer = joblib.load("tfidf_vectorizer.pkl")
-    category_info_df = pd.read_csv("Book1.csv")
+    cat_model = load_artifact("case_category_model.pkl")
+    cat_vectorizer = load_artifact("tfidf_vectorizer.pkl")
+    category_info_df = pd.read_csv(find_artifact("Book1.csv"))
     category_info_df.columns = category_info_df.columns.str.strip().str.lower()
     print("Category classification model loaded successfully.")
 except Exception as e:
@@ -39,15 +66,23 @@ except Exception as e:
     cat_vectorizer = None
     category_info_df = None
 
-# Load outcome prediction model (pre-trained offline)
+# Load outcome prediction model (pre-trained offline by train_outcome.py)
 try:
-    outcome_model = joblib.load("outcome_model.pkl")
-    outcome_vectorizer = joblib.load("outcome_vectorizer.pkl")
+    outcome_model = load_artifact("outcome_model.pkl")
+    outcome_vectorizer = load_artifact("outcome_vectorizer.pkl")
     print("Outcome prediction model loaded successfully.")
 except Exception as e:
     print(f"WARNING: Could not load outcome model: {e}")
     outcome_model = None
     outcome_vectorizer = None
+
+# Precedent index: row-normalised TF-IDF over every decided case in justice.csv
+try:
+    precedent_index = load_artifact("precedent_index.pkl")
+    print(f"Precedent index loaded: {precedent_index['n_cases']} cases.")
+except Exception as e:
+    print(f"WARNING: Could not load precedent index: {e}")
+    precedent_index = None
 
 # Category links for Indian Kanoon
 CATEGORY_LINKS = {
@@ -92,37 +127,37 @@ def home():
 @app.route("/chat", methods=["POST"])
 def chat():
     if co is None:
-        return jsonify({"response": "Chatbot is not configured. Please set the COHERE_API_KEY environment variable."}), 503
+        return jsonify({"response": "The assistant is not configured. Set the COHERE_API_KEY environment variable to switch it on."}), 503
 
     data = request.get_json()
     user_input = data.get("message", "")
 
     if not user_input.strip():
-        return jsonify({"response": "Please enter a message."}), 400
+        return jsonify({"response": "Type a question first."}), 400
 
     try:
         response = co.chat(
             message=f"You are a legal assistant. Answer the following legal question concisely: {user_input}",
-            model="command-r-plus-08-2024",
+            model=COHERE_MODEL,
             temperature=0.5
         )
         bot_reply = response.text.strip()
         return jsonify({"response": bot_reply})
     except Exception as e:
-        return jsonify({"response": f"Sorry, an error occurred: {str(e)}"}), 500
+        return jsonify({"response": f"The assistant could not answer: {str(e)}"}), 500
 
 
 # --- Case Classification ---
 @app.route("/api/classify", methods=["POST"])
 def classify_case():
     if cat_model is None or cat_vectorizer is None:
-        return jsonify({"error": "Classification model not loaded."}), 503
+        return jsonify({"error": "The classification model is not loaded on this server."}), 503
 
     data = request.get_json()
     facts = data.get("facts", "")
 
     if not facts.strip():
-        return jsonify({"error": "Please enter case details."}), 400
+        return jsonify({"error": "Describe the case first."}), 400
 
     try:
         input_vectorized = cat_vectorizer.transform([facts])
@@ -151,11 +186,56 @@ def classify_case():
         return jsonify({"error": str(e)}), 500
 
 
-# --- Case Outcome Prediction ---
+# --- Case Outcome Prediction, with evidence ---
+def explain_prediction(input_vector, top_n=6):
+    """Per-term contribution to the log-odds: coefficient x TF-IDF weight.
+
+    Class 1 is 'first party (petitioner) won', so a positive contribution
+    pushes toward the petitioner and a negative one toward the respondent.
+    """
+    coefs = outcome_model.coef_[0]
+    names = outcome_vectorizer.get_feature_names_out()
+    row = input_vector.tocoo()
+
+    contributions = [(names[col], float(coefs[col] * val))
+                     for col, val in zip(row.col, row.data)
+                     if coefs[col] != 0 and len(names[col]) > 2]
+    contributions.sort(key=lambda pair: pair[1], reverse=True)
+
+    toward_petitioner = [{"term": t, "weight": round(w, 4)}
+                         for t, w in contributions[:top_n] if w > 0]
+    toward_respondent = [{"term": t, "weight": round(abs(w), 4)}
+                         for t, w in reversed(contributions[-top_n:]) if w < 0]
+    return {"petitioner": toward_petitioner, "respondent": toward_respondent}
+
+
+def find_precedents(input_vector, top_n=5):
+    """Cosine similarity against every decided case in the index.
+
+    TfidfVectorizer L2-normalises its rows, so the dot product is the cosine.
+    """
+    if precedent_index is None:
+        return []
+
+    similarities = (precedent_index["matrix"] @ input_vector.T).toarray().ravel()
+    if not similarities.any():
+        return []
+
+    ranked = np.argsort(similarities)[::-1][:top_n]
+    results = []
+    for idx in ranked:
+        score = float(similarities[idx])
+        if score <= 0:
+            continue
+        case = precedent_index["meta"][idx]
+        results.append({**case, "similarity": round(score * 100, 1)})
+    return results
+
+
 @app.route("/api/predict", methods=["POST"])
 def predict_outcome():
     if outcome_model is None or outcome_vectorizer is None:
-        return jsonify({"error": "Prediction model not loaded."}), 503
+        return jsonify({"error": "The prediction model is not loaded on this server."}), 503
 
     data = request.get_json()
     first_party = data.get("first_party", "")
@@ -163,21 +243,80 @@ def predict_outcome():
     facts = data.get("facts", "")
 
     if not first_party.strip() or not second_party.strip():
-        return jsonify({"error": "Both party names are required."}), 400
+        return jsonify({"error": "Name both parties."}), 400
     if not facts.strip() or len(facts) < 20:
-        return jsonify({"error": "Case facts must be at least 20 characters."}), 400
+        return jsonify({"error": "Describe the facts in at least 20 characters."}), 400
 
     try:
         input_text = first_party + " " + second_party + " " + facts
-        input_vectorized = outcome_vectorizer.transform([input_text])
-        probabilities = outcome_model.predict_proba(input_vectorized)[0]
+        input_vector = outcome_vectorizer.transform([input_text])
+        probabilities = outcome_model.predict_proba(input_vector)[0]
+
+        # classes_ is [0, 1] and class 1 means the first party won.
+        petitioner = float(probabilities[list(outcome_model.classes_).index(1)])
+        respondent = 1.0 - petitioner
+
+        precedents = find_precedents(input_vector)
+        petitioner_wins = sum(1 for c in precedents if c["petitioner_won"])
 
         return jsonify({
-            "petitioner": round(float(probabilities[0]) * 100, 2),
-            "respondent": round(float(probabilities[1]) * 100, 2)
+            "petitioner": round(petitioner * 100, 1),
+            "respondent": round(respondent * 100, 1),
+            "drivers": explain_prediction(input_vector),
+            "precedents": precedents,
+            "precedent_tally": {"petitioner": petitioner_wins,
+                                "respondent": len(precedents) - petitioner_wins},
+            "calibration": {
+                "base_rate": round((precedent_index or {}).get("base_rate", 0) * 100, 1),
+                "accuracy": round((precedent_index or {}).get("holdout_accuracy", 0) * 100, 1),
+                "n_cases": (precedent_index or {}).get("n_cases", 0),
+            },
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# --- Contract X-Ray ---
+@app.route("/api/xray", methods=["POST"])
+def contract_xray():
+    if co is None:
+        return jsonify({"error": "Contract X-Ray needs a Cohere API key. Set COHERE_API_KEY on the server."}), 503
+
+    # Accepts either a pasted body (JSON) or an uploaded PDF/text file (multipart).
+    if request.files.get("file"):
+        upload = request.files["file"]
+        try:
+            text = extract_text_from_upload(upload.filename, upload.read())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        party = request.form.get("party", "").strip()
+    else:
+        data = request.get_json(silent=True) or {}
+        text = (data.get("text") or "").strip()
+        party = (data.get("party") or "").strip()
+
+    if len(text) < 200:
+        return jsonify({"error": "That is too short to read as a contract. Paste at least a few clauses."}), 400
+
+    truncated = len(text) > MAX_CONTRACT_CHARS
+    text = text[:MAX_CONTRACT_CHARS]
+
+    try:
+        response = co.chat(
+            message=build_xray_prompt(text, party),
+            model=COHERE_MODEL,
+            temperature=0.2,
+        )
+        parsed = parse_json_block(response.text)
+    except ValueError:
+        return jsonify({"error": "The reading came back unreadable. Try again, or paste a shorter section."}), 502
+    except Exception as e:
+        return jsonify({"error": f"Could not read the contract: {str(e)}"}), 500
+
+    result = normalise_xray(parsed)
+    result["truncated"] = truncated
+    result["reviewed_for"] = party
+    return jsonify(result)
 
 
 # --- Document Generation ---
@@ -188,25 +327,25 @@ def generate_document():
     form_data = data.get("data", {})
 
     if doc_type not in ["partnership", "nda", "ip"]:
-        return jsonify({"error": "Invalid document type."}), 400
-        
+        return jsonify({"error": "Pick a supported agreement type."}), 400
+
     try:
         config = AGREEMENT_CONFIGS[doc_type]
-        
+
         # 1. Save data to Google Sheets
         try:
             append_to_sheet(config["sheet_id"], form_data)
         except Exception as e:
             print(f"Warning: Failed to append to sheet: {e}")
-            
+
         # 2. Fill the Google Docs template and export as PDF
         pdf_bytes = fill_template_and_export(config["template_id"], form_data)
-        
+
         # 3. Email the PDF to the user
         user_email = form_data.get("email", None)
         if not user_email:
-            return jsonify({"error": "Email address is required."}), 400
-            
+            return jsonify({"error": "Add the email address to send it to."}), 400
+
         send_email_with_attachment(
             to_email=user_email,
             subject=f"Your LawEase {doc_type.capitalize()} Agreement",
@@ -214,14 +353,14 @@ def generate_document():
             attachment_bytes=pdf_bytes,
             filename=f"{doc_type.capitalize()}_Agreement.pdf"
         )
-        
+
         return jsonify({
             "success": True,
-            "message": f"Agreement successfully created and emailed to {user_email}.",
+            "message": f"Sent to {user_email}. Check the inbox in a minute.",
         })
-        
+
     except Exception as e:
-        return jsonify({"error": f"An error occurred while generating the document: {str(e)}"}), 500
+        return jsonify({"error": f"Could not draft the agreement: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
